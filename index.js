@@ -1,4 +1,5 @@
 const EXT_ID = 'newapi-key-info';
+const PLUGIN_ENDPOINT = '/api/plugins/newapi-key-info/summary';
 const QUOTA_PER_USD = 500000;
 const MODEL_WAIT_TIMEOUT_MS = 8000;
 
@@ -47,6 +48,7 @@ let state = {
   usage: null,
   lastBaseUrl: '',
   lastApiKeyTail: '',
+  mode: '',
   loadingPricing: false,
   loadingUsage: false,
   waitingForModel: false,
@@ -127,6 +129,16 @@ function getVisibleApiKey() {
   return looksLikeMaskedSecret(key) ? '' : key;
 }
 
+function buildRequestHeaders() {
+  const contextHeaders = globalThis.SillyTavern?.getContext?.()?.getRequestHeaders?.()
+    || globalThis.getRequestHeaders?.()
+    || {};
+  return {
+    ...contextHeaders,
+    'Content-Type': 'application/json',
+  };
+}
+
 async function fetchJson(url, apiKey) {
   const headers = {};
   const token = bearer(apiKey);
@@ -148,26 +160,44 @@ async function fetchJson(url, apiKey) {
   return body;
 }
 
-async function refresh() {
-  const baseUrl = normalizeNewApiBase(getValue(firstVisible(selectors.baseUrl)));
-  const apiKey = getVisibleApiKey();
+async function fetchServerSummary(baseUrl) {
+  const response = await fetch(PLUGIN_ENDPOINT, {
+    method: 'POST',
+    headers: buildRequestHeaders(),
+    body: JSON.stringify({ baseUrl }),
+    cache: 'no-store',
+  });
 
-  if (!baseUrl) {
-    state.pricingError = '缺少自定义 API 地址。';
-    state.usageError = '';
-    render();
-    return;
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.success === false) {
+    throw new Error(body.message || `${response.status} ${response.statusText}`);
   }
+  return body;
+}
 
-  state.loadingPricing = true;
-  state.loadingUsage = Boolean(apiKey);
-  state.pricingError = '';
+async function refreshViaServer(baseUrl) {
+  const result = await fetchServerSummary(baseUrl);
+  state.mode = 'server';
+  state.pricing = result.pricing || null;
+  state.usage = result.usage || null;
+  state.pricingError = result.errors?.pricing || '';
+  state.usageError = result.errors?.usage || '';
+  state.lastApiKeyTail = result.keyTail || '';
+
+  if (!result.hasKey) {
+    state.usageError = '后端没有读到已保存的 Custom API 密钥。';
+  } else if (!state.usage && !state.usageError) {
+    state.usageError = '余额接口没有返回数据。';
+  }
+}
+
+async function refreshViaBrowser(baseUrl) {
+  const apiKey = getVisibleApiKey();
+  state.mode = 'browser';
+  state.lastApiKeyTail = apiKey ? apiKey.slice(-6) : '';
   state.usageError = apiKey
     ? ''
-    : 'ST 已隐藏保存的密钥，余额查询需要页面中存在完整密钥。';
-  state.lastBaseUrl = baseUrl;
-  state.lastApiKeyTail = apiKey ? apiKey.slice(-6) : '';
-  render();
+    : '未安装/未启用后端插件，且 ST 已隐藏保存的密钥，余额查询需要页面中存在完整密钥。';
 
   const tasks = [
     (async () => {
@@ -175,9 +205,6 @@ async function refresh() {
         state.pricing = await fetchJson(`${baseUrl}/api/pricing`, apiKey);
       } catch (error) {
         state.pricingError = error?.message || String(error);
-      } finally {
-        state.loadingPricing = false;
-        render();
       }
     })(),
   ];
@@ -188,17 +215,45 @@ async function refresh() {
         state.usage = await fetchJson(`${baseUrl}/api/usage/token`, apiKey);
       } catch (error) {
         state.usageError = error?.message || String(error);
-      } finally {
-        state.loadingUsage = false;
-        render();
       }
     })());
   } else {
     state.usage = null;
-    state.loadingUsage = false;
   }
 
   await Promise.all(tasks);
+}
+
+async function refresh() {
+  const baseUrl = normalizeNewApiBase(getValue(firstVisible(selectors.baseUrl)));
+
+  if (!baseUrl) {
+    state.pricingError = '缺少自定义 API 地址。';
+    state.usageError = '';
+    render();
+    return;
+  }
+
+  state.loadingPricing = true;
+  state.loadingUsage = true;
+  state.pricingError = '';
+  state.usageError = '';
+  state.lastBaseUrl = baseUrl;
+  render();
+
+  try {
+    await refreshViaServer(baseUrl);
+  } catch (serverError) {
+    state.pricingError = '';
+    await refreshViaBrowser(baseUrl);
+    if (!state.usage && state.usageError) {
+      state.usageError += `（后端插件不可用：${serverError?.message || String(serverError)}）`;
+    }
+  } finally {
+    state.loadingPricing = false;
+    state.loadingUsage = false;
+    render();
+  }
 }
 
 function getCurrentModelName() {
@@ -303,6 +358,12 @@ function formatModelStatus() {
   return `${item.model_name}（${type}，分组 ${group} x${ratio}）`;
 }
 
+function formatMode() {
+  if (state.mode === 'server') return '后端模式';
+  if (state.mode === 'browser') return '前端模式';
+  return '仅支持 new-api';
+}
+
 function panelHtml() {
   const status = state.waitingForModel
     ? '<span class="newapi-key-info__muted">等待模型...</span>'
@@ -310,7 +371,7 @@ function panelHtml() {
       ? '<span class="newapi-key-info__muted">加载中...</span>'
       : state.pricingError
         ? `<span class="newapi-key-info__error">${escapeHtml(state.pricingError)}</span>`
-        : `<span class="newapi-key-info__muted">${escapeHtml(state.lastBaseUrl || '仅支持 new-api')}</span>`;
+        : `<span class="newapi-key-info__muted">${escapeHtml(formatMode())}</span>`;
 
   return `
     <div class="newapi-key-info__row">
@@ -327,6 +388,8 @@ function panelHtml() {
       <span class="newapi-key-info__value">${escapeHtml(formatModelPrice())}</span>
       <span class="newapi-key-info__label">余额</span>
       <span class="newapi-key-info__value">${escapeHtml(formatUsage())}</span>
+      <span class="newapi-key-info__label">来源</span>
+      <span class="newapi-key-info__value">${escapeHtml(`${formatMode()}${state.lastApiKeyTail ? `，密钥尾号 ${state.lastApiKeyTail}` : ''}`)}</span>
     </div>
   `;
 }
