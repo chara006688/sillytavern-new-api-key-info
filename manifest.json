@@ -1,0 +1,13 @@
+{
+  "display_name": "New API Key Info",
+  "loading_order": 999,
+  "requires": [],
+  "optional": [],
+  "dependencies": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "Codex",
+  "version": "0.1.0",
+  "auto_update": false,
+  "minimum_client_version": "1.12.0"
+}

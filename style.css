@@ -1,0 +1,60 @@
+.newapi-key-info {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 10px;
+  border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--SmartThemeBodyColor, #111) 92%, white 8%);
+  color: var(--SmartThemeEmColor, inherit);
+  font-size: 13px;
+}
+
+.newapi-key-info__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.newapi-key-info__title {
+  font-weight: 600;
+}
+
+.newapi-key-info__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.newapi-key-info__button {
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.newapi-key-info__grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 10px;
+}
+
+.newapi-key-info__label {
+  opacity: 0.78;
+  white-space: nowrap;
+}
+
+.newapi-key-info__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.newapi-key-info__muted {
+  opacity: 0.68;
+}
+
+.newapi-key-info__error {
+  color: var(--warning, #ffb86c);
+}
