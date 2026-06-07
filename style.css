@@ -3,11 +3,12 @@
   gap: 8px;
   margin: 8px 0 12px;
   padding: 10px;
-  border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--SmartThemeBodyColor, #111) 92%, white 8%);
-  color: var(--SmartThemeEmColor, inherit);
+  background: #050505;
+  color: #ffffff;
   font-size: 13px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
 }
 
 .newapi-key-info__row {
@@ -31,8 +32,15 @@
 .newapi-key-info__button {
   min-height: 26px;
   padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 5px;
+  background: #181818;
+  color: #ffffff;
   cursor: pointer;
+}
+
+.newapi-key-info__button:hover {
+  background: #242424;
 }
 
 .newapi-key-info__grid {
@@ -52,9 +60,9 @@
 }
 
 .newapi-key-info__muted {
-  opacity: 0.68;
+  color: rgba(255, 255, 255, 0.68);
 }
 
 .newapi-key-info__error {
-  color: var(--warning, #ffb86c);
+  color: #ffcc66;
 }

@@ -1,5 +1,6 @@
 const EXT_ID = 'newapi-key-info';
 const QUOTA_PER_USD = 500000;
+const MODEL_WAIT_TIMEOUT_MS = 8000;
 
 const selectors = {
   source: [
@@ -46,8 +47,11 @@ let state = {
   usage: null,
   lastBaseUrl: '',
   lastApiKeyTail: '',
-  loading: false,
-  error: '',
+  loadingPricing: false,
+  loadingUsage: false,
+  waitingForModel: false,
+  pricingError: '',
+  usageError: '',
 };
 
 function firstVisible(selectorList) {
@@ -109,6 +113,20 @@ function bearer(apiKey) {
   return key ? `Bearer ${key}` : '';
 }
 
+function looksLikeMaskedSecret(value) {
+  const key = String(value || '').trim();
+  if (!key) return true;
+  return /^(\*+|hidden|saved)$/i.test(key)
+    || /^sk-[*.]+$/i.test(key)
+    || key.includes('****')
+    || key.includes('\u2022\u2022\u2022\u2022');
+}
+
+function getVisibleApiKey() {
+  const key = getValue(firstVisible(selectors.apiKey));
+  return looksLikeMaskedSecret(key) ? '' : key;
+}
+
 async function fetchJson(url, apiKey) {
   const headers = {};
   const token = bearer(apiKey);
@@ -125,46 +143,62 @@ async function fetchJson(url, apiKey) {
     throw new Error(body.message || `${response.status} ${response.statusText}`);
   }
   if (body.success === false || body.code === false) {
-    throw new Error(body.message || 'new-api request failed');
+    throw new Error(body.message || 'new-api 请求失败');
   }
   return body;
 }
 
 async function refresh() {
   const baseUrl = normalizeNewApiBase(getValue(firstVisible(selectors.baseUrl)));
-  const apiKey = getValue(firstVisible(selectors.apiKey));
+  const apiKey = getVisibleApiKey();
 
   if (!baseUrl) {
-    state.error = 'Missing custom API URL.';
+    state.pricingError = '缺少自定义 API 地址。';
+    state.usageError = '';
     render();
     return;
   }
 
-  if (!apiKey) {
-    state.error = 'Missing visible API key. Paste or reveal the key before refreshing.';
-    render();
-    return;
-  }
-
-  state.loading = true;
-  state.error = '';
+  state.loadingPricing = true;
+  state.loadingUsage = Boolean(apiKey);
+  state.pricingError = '';
+  state.usageError = apiKey
+    ? ''
+    : 'ST 已隐藏保存的密钥，余额查询需要页面中存在完整密钥。';
+  state.lastBaseUrl = baseUrl;
+  state.lastApiKeyTail = apiKey ? apiKey.slice(-6) : '';
   render();
 
-  try {
-    const [pricing, usage] = await Promise.all([
-      fetchJson(`${baseUrl}/api/pricing`, apiKey),
-      fetchJson(`${baseUrl}/api/usage/token`, apiKey),
-    ]);
-    state.pricing = pricing;
-    state.usage = usage;
-    state.lastBaseUrl = baseUrl;
-    state.lastApiKeyTail = apiKey.slice(-6);
-  } catch (error) {
-    state.error = error?.message || String(error);
-  } finally {
-    state.loading = false;
-    render();
+  const tasks = [
+    (async () => {
+      try {
+        state.pricing = await fetchJson(`${baseUrl}/api/pricing`, apiKey);
+      } catch (error) {
+        state.pricingError = error?.message || String(error);
+      } finally {
+        state.loadingPricing = false;
+        render();
+      }
+    })(),
+  ];
+
+  if (apiKey) {
+    tasks.push((async () => {
+      try {
+        state.usage = await fetchJson(`${baseUrl}/api/usage/token`, apiKey);
+      } catch (error) {
+        state.usageError = error?.message || String(error);
+      } finally {
+        state.loadingUsage = false;
+        render();
+      }
+    })());
+  } else {
+    state.usage = null;
+    state.loadingUsage = false;
   }
+
+  await Promise.all(tasks);
 }
 
 function getCurrentModelName() {
@@ -208,13 +242,15 @@ function formatUsd(value, digits = 6) {
 
 function formatQuota(value) {
   if (!Number.isFinite(value)) return '-';
-  return `${Math.round(value).toLocaleString()} quota`;
+  return `${Math.round(value).toLocaleString()} 额度`;
 }
 
 function formatUsage() {
   const data = state.usage?.data || {};
-  if (!state.usage) return 'Click Refresh.';
-  if (data.unlimited_quota) return 'Unlimited quota';
+  if (state.loadingUsage) return '正在加载...';
+  if (state.usageError) return state.usageError;
+  if (!state.usage) return '点击连接或刷新。';
+  if (data.unlimited_quota) return '无限额度';
 
   const available = Number(data.total_available);
   const used = Number(data.total_used);
@@ -222,69 +258,74 @@ function formatUsage() {
   const parts = [];
 
   if (Number.isFinite(available)) {
-    parts.push(`${formatQuota(available)} (${formatUsd(available / QUOTA_PER_USD, 4)}) left`);
+    parts.push(`剩余 ${formatQuota(available)}，约 ${formatUsd(available / QUOTA_PER_USD, 4)}`);
   }
   if (Number.isFinite(used) && Number.isFinite(granted)) {
-    parts.push(`${formatQuota(used)} used of ${formatQuota(granted)}`);
+    parts.push(`已用 ${formatQuota(used)} / 总计 ${formatQuota(granted)}`);
   }
-  return parts.join(' / ') || 'No quota fields returned.';
+  return parts.join(' / ') || '接口未返回可识别的余额字段。';
 }
 
 function formatModelPrice() {
   const item = currentPricing();
-  if (!state.pricing) return 'Click Refresh.';
-  if (!item) return 'No price for selected model.';
+  if (state.waitingForModel) return '正在等待模型列表...';
+  if (state.loadingPricing) return '正在加载...';
+  if (state.pricingError) return state.pricingError;
+  if (!state.pricing) return '点击连接或刷新。';
+  if (!item) return '当前模型没有价格信息。';
 
   const [, ratio] = preferredGroupRatio();
   if (Number(item.quota_type) === 1) {
     const price = Number(item.model_price) * ratio;
     const quota = price * QUOTA_PER_USD;
-    return `per request ${formatUsd(price, 6)} / ${formatQuota(quota)}`;
+    return `按次 ${formatUsd(price, 6)} / ${formatQuota(quota)}`;
   }
 
   const modelRatio = Number(item.model_ratio);
   const completionRatio = Number(item.completion_ratio || 1);
-  if (!Number.isFinite(modelRatio)) return 'Price not configured.';
+  if (!Number.isFinite(modelRatio)) return '价格未配置。';
 
   const inputQuotaPer1k = modelRatio * ratio * 1000;
   const outputQuotaPer1k = modelRatio * completionRatio * ratio * 1000;
   const inputUsdPer1m = modelRatio * ratio * 2;
   const outputUsdPer1m = modelRatio * completionRatio * ratio * 2;
-  return `metered input ${formatQuota(inputQuotaPer1k)}/1K (${formatUsd(inputUsdPer1m, 6)}/1M), output ${formatQuota(outputQuotaPer1k)}/1K (${formatUsd(outputUsdPer1m, 6)}/1M)`;
+  return `按量 输入 ${formatQuota(inputQuotaPer1k)}/1K (${formatUsd(inputUsdPer1m, 6)}/1M)，输出 ${formatQuota(outputQuotaPer1k)}/1K (${formatUsd(outputUsdPer1m, 6)}/1M)`;
 }
 
 function formatModelStatus() {
   const item = currentPricing();
   const model = getCurrentModelName();
-  if (!model) return 'No model selected.';
+  if (!model) return '未选择模型。';
   if (!item) return model;
 
   const [group, ratio] = preferredGroupRatio();
-  const type = Number(item.quota_type) === 1 ? 'fixed' : 'metered';
-  return `${item.model_name} (${type}, group ${group} x${ratio})`;
+  const type = Number(item.quota_type) === 1 ? '按次' : '按量';
+  return `${item.model_name}（${type}，分组 ${group} x${ratio}）`;
 }
 
 function panelHtml() {
-  const status = state.loading
-    ? '<span class="newapi-key-info__muted">Loading...</span>'
-    : state.error
-      ? `<span class="newapi-key-info__error">${escapeHtml(state.error)}</span>`
-      : `<span class="newapi-key-info__muted">${escapeHtml(state.lastBaseUrl || 'new-api only')}</span>`;
+  const status = state.waitingForModel
+    ? '<span class="newapi-key-info__muted">等待模型...</span>'
+    : state.loadingPricing || state.loadingUsage
+      ? '<span class="newapi-key-info__muted">加载中...</span>'
+      : state.pricingError
+        ? `<span class="newapi-key-info__error">${escapeHtml(state.pricingError)}</span>`
+        : `<span class="newapi-key-info__muted">${escapeHtml(state.lastBaseUrl || '仅支持 new-api')}</span>`;
 
   return `
     <div class="newapi-key-info__row">
-      <span class="newapi-key-info__title">New API info</span>
+      <span class="newapi-key-info__title">New API 信息</span>
       <span class="newapi-key-info__actions">
         ${status}
-        <button class="newapi-key-info__button menu_button" type="button" data-newapi-refresh>Refresh</button>
+        <button class="newapi-key-info__button menu_button" type="button" data-newapi-refresh>刷新</button>
       </span>
     </div>
     <div class="newapi-key-info__grid">
-      <span class="newapi-key-info__label">Model</span>
+      <span class="newapi-key-info__label">模型</span>
       <span class="newapi-key-info__value">${escapeHtml(formatModelStatus())}</span>
-      <span class="newapi-key-info__label">Price</span>
+      <span class="newapi-key-info__label">价格</span>
       <span class="newapi-key-info__value">${escapeHtml(formatModelPrice())}</span>
-      <span class="newapi-key-info__label">Balance</span>
+      <span class="newapi-key-info__label">余额</span>
       <span class="newapi-key-info__value">${escapeHtml(formatUsage())}</span>
     </div>
   `;
@@ -347,15 +388,45 @@ function scheduleRender() {
 
 scheduleRender.timer = null;
 
+function waitForModel(timeoutMs = MODEL_WAIT_TIMEOUT_MS) {
+  const deadline = Date.now() + timeoutMs;
+
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (getCurrentModelName()) {
+        resolve(true);
+        return;
+      }
+
+      if (Date.now() >= deadline) {
+        resolve(false);
+        return;
+      }
+
+      setTimeout(tick, 250);
+    };
+
+    tick();
+  });
+}
+
+async function refreshAfterConnect() {
+  state.waitingForModel = true;
+  render();
+  await waitForModel();
+  state.waitingForModel = false;
+  await refresh();
+}
+
 function bindLiveRefresh() {
   document.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
 
     const clickedConnect = selectors.connect.some((selector) => target.closest(selector));
-    const textLooksLikeConnect = /^(connect|连接|連接)$/i.test(String(target.textContent || '').trim());
+    const textLooksLikeConnect = /^(connect|\u8fde\u63a5|\u9023\u63a5)$/i.test(String(target.textContent || '').trim());
     if (clickedConnect || textLooksLikeConnect) {
-      setTimeout(refresh, 1500);
+      setTimeout(refreshAfterConnect, 500);
     }
   });
 

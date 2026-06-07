@@ -1,5 +1,5 @@
 {
-  "display_name": "New API Key Info",
+  "display_name": "New API 密钥信息",
   "loading_order": 999,
   "requires": [],
   "optional": [],
@@ -7,7 +7,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "Codex",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "auto_update": false,
   "minimum_client_version": "1.12.0"
 }
