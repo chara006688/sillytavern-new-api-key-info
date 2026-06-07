@@ -21,7 +21,7 @@
 - `SillyTavern/data/default-user/extensions/sillytavern-new-api-key-info`
 - `SillyTavern/public/scripts/extensions/third-party/sillytavern-new-api-key-info`
 
-然后重启 SillyTavern，或刷新浏览器页面，并在扩展管理里启用 `New API 密钥信息`。
+然后重启 SillyTavern，或刷新浏览器页面，并在扩展管理里启用 `New API Key Info`。
 
 ## 安装后端 Server Plugin
 
@@ -64,15 +64,33 @@ enableServerPlugins: true
 - 手动刷新：点击面板里的 `刷新`。
 - 切换模型：只用已经缓存的价格数据重新显示，不会重新请求余额接口。
 
+## 支持的自定义 API 地址
+
+推荐填写：
+
+```text
+https://你的-new-api-域名/v1
+```
+
+插件也会兼容以下输入，并自动推导回 new-api 根地址：
+
+```text
+https://你的-new-api-域名
+https://你的-new-api-域名/pricing
+https://你的-new-api-域名/api/pricing
+https://你的-new-api-域名/v1/chat/completions
+```
+
 ## 需要的 new-api 接口
 
 - `GET /api/pricing`
 - `GET /api/usage/token`
 
-扩展会从自定义 API 地址推导 new-api 根地址，例如：
+例如：
 
 - `https://api.example.com/v1` -> `https://api.example.com/api/pricing`
-- `https://api.example.com/v1/chat/completions` -> `https://api.example.com/api/usage/token`
+- `https://api.example.com/pricing` -> `https://api.example.com/api/pricing`
+- `https://api.example.com/api/pricing` -> `https://api.example.com/api/pricing`
 
 ## 关于隐藏密钥和余额
 

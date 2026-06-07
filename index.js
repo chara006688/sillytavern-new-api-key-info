@@ -3,6 +3,45 @@ const PLUGIN_ENDPOINT = '/api/plugins/newapi-key-info/summary';
 const QUOTA_PER_USD = 500000;
 const MODEL_WAIT_TIMEOUT_MS = 8000;
 
+const zh = {
+  requestFailed: '\u006e\u0065\u0077\u002d\u0061\u0070\u0069 \u8bf7\u6c42\u5931\u8d25',
+  noBaseUrl: '\u7f3a\u5c11\u81ea\u5b9a\u4e49 API \u5730\u5740\u3002',
+  noServerKey: '\u540e\u7aef\u6ca1\u6709\u8bfb\u5230\u5df2\u4fdd\u5b58\u7684 Custom API \u5bc6\u94a5\u3002',
+  noUsageData: '\u4f59\u989d\u63a5\u53e3\u6ca1\u6709\u8fd4\u56de\u6570\u636e\u3002',
+  browserNoKey: '\u672a\u5b89\u88c5\u002f\u672a\u542f\u7528\u540e\u7aef\u63d2\u4ef6\uff0c\u4e14 ST \u5df2\u9690\u85cf\u4fdd\u5b58\u7684\u5bc6\u94a5\uff0c\u4f59\u989d\u67e5\u8be2\u9700\u8981\u9875\u9762\u4e2d\u5b58\u5728\u5b8c\u6574\u5bc6\u94a5\u3002',
+  serverUnavailable: '\u540e\u7aef\u63d2\u4ef6\u4e0d\u53ef\u7528',
+  quota: '\u989d\u5ea6',
+  loading: '\u6b63\u5728\u52a0\u8f7d...',
+  clickRefresh: '\u70b9\u51fb\u8fde\u63a5\u6216\u5237\u65b0\u3002',
+  unlimited: '\u65e0\u9650\u989d\u5ea6',
+  remaining: '\u5269\u4f59',
+  about: '\u7ea6',
+  used: '\u5df2\u7528',
+  total: '\u603b\u8ba1',
+  badUsageFields: '\u63a5\u53e3\u672a\u8fd4\u56de\u53ef\u8bc6\u522b\u7684\u4f59\u989d\u5b57\u6bb5\u3002',
+  waitModels: '\u6b63\u5728\u7b49\u5f85\u6a21\u578b\u5217\u8868...',
+  noPrice: '\u5f53\u524d\u6a21\u578b\u6ca1\u6709\u4ef7\u683c\u4fe1\u606f\u3002',
+  badPrice: '\u4ef7\u683c\u672a\u914d\u7f6e\u3002',
+  perRequest: '\u6309\u6b21',
+  metered: '\u6309\u91cf',
+  input: '\u8f93\u5165',
+  output: '\u8f93\u51fa',
+  noModel: '\u672a\u9009\u62e9\u6a21\u578b\u3002',
+  group: '\u5206\u7ec4',
+  serverMode: '\u540e\u7aef\u6a21\u5f0f',
+  browserMode: '\u524d\u7aef\u6a21\u5f0f',
+  onlyNewApi: '\u4ec5\u652f\u6301 new-api',
+  waitingModelShort: '\u7b49\u5f85\u6a21\u578b...',
+  loadingShort: '\u52a0\u8f7d\u4e2d...',
+  title: 'New API \u4fe1\u606f',
+  refresh: '\u5237\u65b0',
+  model: '\u6a21\u578b',
+  price: '\u4ef7\u683c',
+  balance: '\u4f59\u989d',
+  source: '\u6765\u6e90',
+  keyTail: '\u5bc6\u94a5\u5c3e\u53f7',
+};
+
 const selectors = {
   source: [
     '#chat_completion_source',
@@ -91,30 +130,24 @@ function normalizeNewApiBase(rawUrl) {
   const trimmed = String(rawUrl || '').trim();
   if (!trimmed) return '';
 
+  const cleanPath = (path) => path
+    .replace(/\/api\/pricing\/?$/i, '')
+    .replace(/\/pricing\/?$/i, '')
+    .replace(/\/api\/usage\/token\/?$/i, '')
+    .replace(/\/v1\/chat\/completions\/?$/i, '')
+    .replace(/\/v1\/?$/i, '')
+    .replace(/\/api\/?$/i, '')
+    .replace(/\/chat\/completions\/?$/i, '')
+    .replace(/\/+$/g, '');
+
   try {
     const url = new URL(trimmed);
-    url.pathname = url.pathname
-      .replace(/\/api\/pricing\/?$/i, '')
-      .replace(/\/pricing\/?$/i, '')
-      .replace(/\/api\/usage\/token\/?$/i, '')
-      .replace(/\/v1\/chat\/completions\/?$/i, '')
-      .replace(/\/v1\/?$/i, '')
-      .replace(/\/api\/?$/i, '')
-      .replace(/\/chat\/completions\/?$/i, '')
-      .replace(/\/+$/g, '');
+    url.pathname = cleanPath(url.pathname);
     url.search = '';
     url.hash = '';
     return url.toString().replace(/\/$/g, '');
   } catch {
-    return trimmed
-      .replace(/\/api\/pricing\/?$/i, '')
-      .replace(/\/pricing\/?$/i, '')
-      .replace(/\/api\/usage\/token\/?$/i, '')
-      .replace(/\/v1\/chat\/completions\/?$/i, '')
-      .replace(/\/v1\/?$/i, '')
-      .replace(/\/api\/?$/i, '')
-      .replace(/\/chat\/completions\/?$/i, '')
-      .replace(/\/+$/g, '');
+    return cleanPath(trimmed).replace(/\/$/g, '');
   }
 }
 
@@ -163,7 +196,7 @@ async function fetchJson(url, apiKey) {
     throw new Error(body.message || `${response.status} ${response.statusText}`);
   }
   if (body.success === false || body.code === false) {
-    throw new Error(body.message || 'new-api 请求失败');
+    throw new Error(body.message || zh.requestFailed);
   }
   return body;
 }
@@ -193,9 +226,9 @@ async function refreshViaServer(baseUrl) {
   state.lastApiKeyTail = result.keyTail || '';
 
   if (!result.hasKey) {
-    state.usageError = '后端没有读到已保存的 Custom API 密钥。';
+    state.usageError = zh.noServerKey;
   } else if (!state.usage && !state.usageError) {
-    state.usageError = '余额接口没有返回数据。';
+    state.usageError = zh.noUsageData;
   }
 }
 
@@ -203,9 +236,7 @@ async function refreshViaBrowser(baseUrl) {
   const apiKey = getVisibleApiKey();
   state.mode = 'browser';
   state.lastApiKeyTail = apiKey ? apiKey.slice(-6) : '';
-  state.usageError = apiKey
-    ? ''
-    : '未安装/未启用后端插件，且 ST 已隐藏保存的密钥，余额查询需要页面中存在完整密钥。';
+  state.usageError = apiKey ? '' : zh.browserNoKey;
 
   const tasks = [
     (async () => {
@@ -236,7 +267,7 @@ async function refresh() {
   const baseUrl = normalizeNewApiBase(getValue(firstVisible(selectors.baseUrl)));
 
   if (!baseUrl) {
-    state.pricingError = '缺少自定义 API 地址。';
+    state.pricingError = zh.noBaseUrl;
     state.usageError = '';
     render();
     return;
@@ -255,7 +286,7 @@ async function refresh() {
     state.pricingError = '';
     await refreshViaBrowser(baseUrl);
     if (!state.usage && state.usageError) {
-      state.usageError += `（后端插件不可用：${serverError?.message || String(serverError)}）`;
+      state.usageError += `\uff08${zh.serverUnavailable}\uff1a${serverError?.message || String(serverError)}\uff09`;
     }
   } finally {
     state.loadingPricing = false;
@@ -305,15 +336,15 @@ function formatUsd(value, digits = 6) {
 
 function formatQuota(value) {
   if (!Number.isFinite(value)) return '-';
-  return `${Math.round(value).toLocaleString()} 额度`;
+  return `${Math.round(value).toLocaleString()} ${zh.quota}`;
 }
 
 function formatUsage() {
   const data = state.usage?.data || {};
-  if (state.loadingUsage) return '正在加载...';
+  if (state.loadingUsage) return zh.loading;
   if (state.usageError) return state.usageError;
-  if (!state.usage) return '点击连接或刷新。';
-  if (data.unlimited_quota) return '无限额度';
+  if (!state.usage) return zh.clickRefresh;
+  if (data.unlimited_quota) return zh.unlimited;
 
   const available = Number(data.total_available);
   const used = Number(data.total_used);
@@ -321,83 +352,85 @@ function formatUsage() {
   const parts = [];
 
   if (Number.isFinite(available)) {
-    parts.push(`剩余 ${formatQuota(available)}，约 ${formatUsd(available / QUOTA_PER_USD, 4)}`);
+    parts.push(`${zh.remaining} ${formatQuota(available)}，${zh.about} ${formatUsd(available / QUOTA_PER_USD, 4)}`);
   }
   if (Number.isFinite(used) && Number.isFinite(granted)) {
-    parts.push(`已用 ${formatQuota(used)} / 总计 ${formatQuota(granted)}`);
+    parts.push(`${zh.used} ${formatQuota(used)} / ${zh.total} ${formatQuota(granted)}`);
   }
-  return parts.join(' / ') || '接口未返回可识别的余额字段。';
+  return parts.join(' / ') || zh.badUsageFields;
 }
 
 function formatModelPrice() {
   const item = currentPricing();
-  if (state.waitingForModel) return '正在等待模型列表...';
-  if (state.loadingPricing) return '正在加载...';
+  if (state.waitingForModel) return zh.waitModels;
+  if (state.loadingPricing) return zh.loading;
   if (state.pricingError) return state.pricingError;
-  if (!state.pricing) return '点击连接或刷新。';
-  if (!item) return '当前模型没有价格信息。';
+  if (!state.pricing) return zh.clickRefresh;
+  if (!item) return zh.noPrice;
 
   const [, ratio] = preferredGroupRatio();
   if (Number(item.quota_type) === 1) {
     const price = Number(item.model_price) * ratio;
     const quota = price * QUOTA_PER_USD;
-    return `按次 ${formatUsd(price, 6)} / ${formatQuota(quota)}`;
+    return `${zh.perRequest} ${formatUsd(price, 6)} / ${formatQuota(quota)}`;
   }
 
   const modelRatio = Number(item.model_ratio);
   const completionRatio = Number(item.completion_ratio || 1);
-  if (!Number.isFinite(modelRatio)) return '价格未配置。';
+  if (!Number.isFinite(modelRatio)) return zh.badPrice;
 
   const inputQuotaPer1k = modelRatio * ratio * 1000;
   const outputQuotaPer1k = modelRatio * completionRatio * ratio * 1000;
   const inputUsdPer1m = modelRatio * ratio * 2;
   const outputUsdPer1m = modelRatio * completionRatio * ratio * 2;
-  return `按量 输入 ${formatQuota(inputQuotaPer1k)}/1K (${formatUsd(inputUsdPer1m, 6)}/1M)，输出 ${formatQuota(outputQuotaPer1k)}/1K (${formatUsd(outputUsdPer1m, 6)}/1M)`;
+  return `${zh.metered} ${zh.input} ${formatQuota(inputQuotaPer1k)}/1K (${formatUsd(inputUsdPer1m, 6)}/1M)，${zh.output} ${formatQuota(outputQuotaPer1k)}/1K (${formatUsd(outputUsdPer1m, 6)}/1M)`;
 }
 
 function formatModelStatus() {
   const item = currentPricing();
   const model = getCurrentModelName();
-  if (!model) return '未选择模型。';
+  if (!model) return zh.noModel;
   if (!item) return model;
 
   const [group, ratio] = preferredGroupRatio();
-  const type = Number(item.quota_type) === 1 ? '按次' : '按量';
-  return `${item.model_name}（${type}，分组 ${group} x${ratio}）`;
+  const type = Number(item.quota_type) === 1 ? zh.perRequest : zh.metered;
+  return `${item.model_name}（${type}，${zh.group} ${group} x${ratio}）`;
 }
 
 function formatMode() {
-  if (state.mode === 'server') return '后端模式';
-  if (state.mode === 'browser') return '前端模式';
-  return '仅支持 new-api';
+  if (state.mode === 'server') return zh.serverMode;
+  if (state.mode === 'browser') return zh.browserMode;
+  return zh.onlyNewApi;
 }
 
 function panelHtml() {
   const status = state.waitingForModel
-    ? '<span class="newapi-key-info__muted">等待模型...</span>'
+    ? `<span class="newapi-key-info__muted">${zh.waitingModelShort}</span>`
     : state.loadingPricing || state.loadingUsage
-      ? '<span class="newapi-key-info__muted">加载中...</span>'
+      ? `<span class="newapi-key-info__muted">${zh.loadingShort}</span>`
       : state.pricingError
         ? `<span class="newapi-key-info__error">${escapeHtml(state.pricingError)}</span>`
         : `<span class="newapi-key-info__muted">${escapeHtml(formatMode())}</span>`;
 
+  const source = `${formatMode()}${state.lastApiKeyTail ? `，${zh.keyTail} ${state.lastApiKeyTail}` : ''}`;
+
   return `
     <div class="newapi-key-info__row">
-      <span class="newapi-key-info__title">New API 信息</span>
+      <span class="newapi-key-info__title">${zh.title}</span>
       <span class="newapi-key-info__actions">
         ${status}
-        <button class="newapi-key-info__button menu_button" type="button" data-newapi-refresh>刷新</button>
+        <button class="newapi-key-info__button menu_button" type="button" data-newapi-refresh>${zh.refresh}</button>
       </span>
     </div>
     <div class="newapi-key-info__grid">
-      <span class="newapi-key-info__label">模型</span>
+      <span class="newapi-key-info__label">${zh.model}</span>
       <span class="newapi-key-info__value">${escapeHtml(formatModelStatus())}</span>
-      <span class="newapi-key-info__label">价格</span>
+      <span class="newapi-key-info__label">${zh.price}</span>
       <span class="newapi-key-info__value">${escapeHtml(formatModelPrice())}</span>
-      <span class="newapi-key-info__label">余额</span>
+      <span class="newapi-key-info__label">${zh.balance}</span>
       <span class="newapi-key-info__value">${escapeHtml(formatUsage())}</span>
-      <span class="newapi-key-info__label">来源</span>
-      <span class="newapi-key-info__value">${escapeHtml(`${formatMode()}${state.lastApiKeyTail ? `，密钥尾号 ${state.lastApiKeyTail}` : ''}`)}</span>
+      <span class="newapi-key-info__label">${zh.source}</span>
+      <span class="newapi-key-info__value">${escapeHtml(source)}</span>
     </div>
   `;
 }

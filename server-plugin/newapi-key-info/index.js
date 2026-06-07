@@ -1,15 +1,25 @@
 const PLUGIN_ID = 'newapi-key-info';
 const REQUEST_TIMEOUT_MS = 15000;
 
+const zh = {
+  noBaseUrl: '\u7f3a\u5c11\u81ea\u5b9a\u4e49 API \u5730\u5740\u3002',
+  badProtocol: '\u53ea\u5141\u8bb8 http/https API \u5730\u5740\u3002',
+  requestFailed: '\u006e\u0065\u0077\u002d\u0061\u0070\u0069 \u8bf7\u6c42\u5931\u8d25',
+  noUserDirs: '\u5f53\u524d\u8bf7\u6c42\u6ca1\u6709\u7528\u6237\u76ee\u5f55\u4fe1\u606f\u3002',
+  noSavedKey: '\u672a\u627e\u5230\u5df2\u4fdd\u5b58\u7684 Custom API \u5bc6\u94a5\u3002',
+  name: 'New API \u5bc6\u94a5\u4fe1\u606f',
+  description: '\u8bfb\u53d6 SillyTavern \u5df2\u4fdd\u5b58\u7684 Custom API \u5bc6\u94a5\u5e76\u67e5\u8be2 new-api \u4ef7\u683c\u4e0e\u4f59\u989d\u3002',
+};
+
 function normalizeNewApiBase(rawUrl) {
   const trimmed = String(rawUrl || '').trim();
   if (!trimmed) {
-    throw new Error('缺少自定义 API 地址。');
+    throw new Error(zh.noBaseUrl);
   }
 
   const url = new URL(trimmed);
   if (!['http:', 'https:'].includes(url.protocol)) {
-    throw new Error('只允许 http/https API 地址。');
+    throw new Error(zh.badProtocol);
   }
 
   url.pathname = url.pathname
@@ -45,7 +55,7 @@ async function fetchJson(url, apiKey) {
       throw new Error(body.message || `${response.status} ${response.statusText}`);
     }
     if (body.success === false || body.code === false) {
-      throw new Error(body.message || 'new-api 请求失败');
+      throw new Error(body.message || zh.requestFailed);
     }
     return body;
   } finally {
@@ -58,7 +68,7 @@ async function readCustomApiKey(request) {
   const directories = request.user?.directories;
 
   if (!directories) {
-    throw new Error('当前请求没有用户目录信息。');
+    throw new Error(zh.noUserDirs);
   }
 
   return readSecret(directories, SECRET_KEYS.CUSTOM);
@@ -86,7 +96,7 @@ async function init(router) {
           errors.usage = error?.message || String(error);
         }
       } else {
-        errors.usage = '未找到已保存的 Custom API 密钥。';
+        errors.usage = zh.noSavedKey;
       }
 
       response.json({
@@ -94,6 +104,7 @@ async function init(router) {
         mode: 'server',
         hasKey: Boolean(apiKey),
         keyTail: apiKey ? apiKey.slice(-6) : '',
+        baseUrl,
         pricing,
         usage,
         errors,
@@ -118,7 +129,7 @@ module.exports = {
   exit,
   info: {
     id: PLUGIN_ID,
-    name: 'New API 密钥信息',
-    description: '读取 SillyTavern 已保存的 Custom API 密钥并查询 new-api 价格与余额。',
+    name: zh.name,
+    description: zh.description,
   },
 };
