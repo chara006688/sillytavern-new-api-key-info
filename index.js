@@ -94,8 +94,12 @@ function normalizeNewApiBase(rawUrl) {
   try {
     const url = new URL(trimmed);
     url.pathname = url.pathname
+      .replace(/\/api\/pricing\/?$/i, '')
+      .replace(/\/pricing\/?$/i, '')
+      .replace(/\/api\/usage\/token\/?$/i, '')
       .replace(/\/v1\/chat\/completions\/?$/i, '')
       .replace(/\/v1\/?$/i, '')
+      .replace(/\/api\/?$/i, '')
       .replace(/\/chat\/completions\/?$/i, '')
       .replace(/\/+$/g, '');
     url.search = '';
@@ -103,8 +107,12 @@ function normalizeNewApiBase(rawUrl) {
     return url.toString().replace(/\/$/g, '');
   } catch {
     return trimmed
+      .replace(/\/api\/pricing\/?$/i, '')
+      .replace(/\/pricing\/?$/i, '')
+      .replace(/\/api\/usage\/token\/?$/i, '')
       .replace(/\/v1\/chat\/completions\/?$/i, '')
       .replace(/\/v1\/?$/i, '')
+      .replace(/\/api\/?$/i, '')
       .replace(/\/chat\/completions\/?$/i, '')
       .replace(/\/+$/g, '');
   }
