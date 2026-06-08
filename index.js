@@ -57,9 +57,9 @@ const selectors = {
     '[name="custom_openai_api_url"]',
   ],
   apiKey: [
+    '#api_key_custom',
     '#custom_openai_api_key',
     '#custom_api_key',
-    '#api_key_custom',
     '#api_key_openai',
     '#openai_api_key',
     '[name="custom_openai_api_key"]',
@@ -67,12 +67,17 @@ const selectors = {
     'input[type="password"]',
   ],
   model: [
-    '#model_openai_select',
+    '#custom_model_id',
     '#model_custom_select',
+    '#model_openai_select',
     '#model_chat_completion',
     '#openai_model',
     '#custom_model',
+    '[name="custom_model"]',
     '[name="model"]',
+  ],
+  profile: [
+    '#connection_profiles',
   ],
   connect: [
     '#api_button_openai',
@@ -117,7 +122,15 @@ function selectedText(el) {
   return String(el.options[el.selectedIndex]?.textContent || '').trim();
 }
 
+function normalizeModelName(value) {
+  const model = String(value || '').trim();
+  return /^(none|null|undefined)$/i.test(model) ? '' : model;
+}
+
 function isCustomChatCompletion() {
+  const contextSource = String(getChatCompletionSettings().chat_completion_source || '').toLowerCase();
+  if (contextSource === 'custom') return true;
+
   const source = firstVisible(selectors.source);
   if (!source) return Boolean(firstVisible(selectors.baseUrl));
 
@@ -170,8 +183,50 @@ function getVisibleApiKey() {
   return looksLikeMaskedSecret(key) ? '' : key;
 }
 
+function getCustomBaseUrl() {
+  const settings = getChatCompletionSettings();
+  return normalizeNewApiBase(getValue(firstVisible(selectors.baseUrl)) || settings.custom_url || '');
+}
+
+function getContext() {
+  try {
+    return globalThis.SillyTavern?.getContext?.() || {};
+  } catch {
+    return {};
+  }
+}
+
+function getChatCompletionSettings() {
+  return getContext().chatCompletionSettings || globalThis.oai_settings || {};
+}
+
+function getExtensionSettings() {
+  const context = getContext();
+  return context.extensionSettings || globalThis.extension_settings || {};
+}
+
+function getSelectedProfile() {
+  const connectionManager = getExtensionSettings().connectionManager;
+  const selectedId = getValue(firstVisible(selectors.profile)) || connectionManager?.selectedProfile || '';
+  const profiles = Array.isArray(connectionManager?.profiles) ? connectionManager.profiles : [];
+  return profiles.find((profile) => profile.id === selectedId || profile.name === selectedId) || null;
+}
+
+function getActiveSecretId() {
+  const profileSecretId = getSelectedProfile()?.['secret-id'];
+  if (profileSecretId) return String(profileSecretId);
+
+  const secretState = globalThis.secret_state || getContext().secretState || {};
+  const customSecrets = secretState.api_key_custom;
+  if (Array.isArray(customSecrets)) {
+    return customSecrets.find((secret) => secret?.active)?.id || '';
+  }
+
+  return '';
+}
+
 function buildRequestHeaders() {
-  const contextHeaders = globalThis.SillyTavern?.getContext?.()?.getRequestHeaders?.()
+  const contextHeaders = getContext().getRequestHeaders?.()
     || globalThis.getRequestHeaders?.()
     || {};
   return {
@@ -201,11 +256,11 @@ async function fetchJson(url, apiKey) {
   return body;
 }
 
-async function fetchServerSummary(baseUrl) {
+async function fetchServerSummary(baseUrl, secretId) {
   const response = await fetch(PLUGIN_ENDPOINT, {
     method: 'POST',
     headers: buildRequestHeaders(),
-    body: JSON.stringify({ baseUrl }),
+    body: JSON.stringify({ baseUrl, secretId }),
     cache: 'no-store',
   });
 
@@ -216,8 +271,8 @@ async function fetchServerSummary(baseUrl) {
   return body;
 }
 
-async function refreshViaServer(baseUrl) {
-  const result = await fetchServerSummary(baseUrl);
+async function refreshViaServer(baseUrl, secretId) {
+  const result = await fetchServerSummary(baseUrl, secretId);
   state.mode = 'server';
   state.pricing = result.pricing || null;
   state.usage = result.usage || null;
@@ -264,7 +319,8 @@ async function refreshViaBrowser(baseUrl) {
 }
 
 async function refresh() {
-  const baseUrl = normalizeNewApiBase(getValue(firstVisible(selectors.baseUrl)));
+  const baseUrl = getCustomBaseUrl();
+  const secretId = getActiveSecretId();
 
   if (!baseUrl) {
     state.pricingError = zh.noBaseUrl;
@@ -281,7 +337,7 @@ async function refresh() {
   render();
 
   try {
-    await refreshViaServer(baseUrl);
+    await refreshViaServer(baseUrl, secretId);
   } catch (serverError) {
     state.pricingError = '';
     await refreshViaBrowser(baseUrl);
@@ -296,13 +352,39 @@ async function refresh() {
 }
 
 function getCurrentModelName() {
-  const modelEl = firstVisible(selectors.model);
-  return getValue(modelEl) || selectedText(modelEl);
+  const settings = getChatCompletionSettings();
+  const customModel = String(settings.custom_model || '').trim();
+  for (const selector of selectors.model) {
+    for (const el of document.querySelectorAll(selector)) {
+      if (!(el instanceof HTMLElement) || el.offsetParent === null) continue;
+      const value = normalizeModelName(getValue(el)) || normalizeModelName(selectedText(el));
+      if (value) return value;
+    }
+  }
+  return normalizeModelName(customModel);
 }
 
 function pricingItems() {
   const data = state.pricing?.data;
-  return Array.isArray(data) ? data : [];
+  if (Array.isArray(data)) return data;
+
+  const source = data && typeof data === 'object' ? data : state.pricing;
+  if (!source || typeof source !== 'object') return [];
+
+  const modelRatios = source.model_ratio || source.modelRatio || {};
+  const completionRatios = source.completion_ratio || source.completionRatio || {};
+  const modelPrices = source.model_price || source.modelPrice || {};
+
+  return Object.entries(source)
+    .filter(([key, value]) => key !== 'group_ratio' && key !== 'model_ratio' && key !== 'completion_ratio' && key !== 'model_price' && value && typeof value === 'object')
+    .map(([modelName, value]) => ({
+      model_name: value.model_name || value.model || modelName,
+      model_ratio: value.model_ratio ?? value.modelRatio ?? modelRatios[modelName],
+      completion_ratio: value.completion_ratio ?? value.completionRatio ?? completionRatios[modelName] ?? 1,
+      model_price: value.model_price ?? value.modelPrice ?? modelPrices[modelName],
+      quota_type: value.quota_type ?? value.quotaType ?? 0,
+      ...value,
+    }));
 }
 
 function currentPricing() {
@@ -492,6 +574,21 @@ function scheduleRender() {
 
 scheduleRender.timer = null;
 
+function clearRemoteData() {
+  state.pricing = null;
+  state.usage = null;
+  state.lastApiKeyTail = '';
+  state.lastBaseUrl = '';
+  state.mode = '';
+  state.pricingError = '';
+  state.usageError = '';
+}
+
+function scheduleDataReset() {
+  clearRemoteData();
+  scheduleRender();
+}
+
 function waitForModel(timeoutMs = MODEL_WAIT_TIMEOUT_MS) {
   const deadline = Date.now() + timeoutMs;
 
@@ -536,10 +633,21 @@ function bindLiveRefresh() {
 
   document.addEventListener('change', (event) => {
     if (event.target?.matches?.([
+      ...selectors.model,
+    ].join(','))) {
+      scheduleRender();
+    }
+
+    if (event.target?.matches?.([
       ...selectors.source,
       ...selectors.baseUrl,
+      ...selectors.profile,
+    ].join(','))) {
+      scheduleDataReset();
+    }
+
+    if (event.target?.matches?.([
       ...selectors.apiKey,
-      ...selectors.model,
     ].join(','))) {
       scheduleRender();
     }
@@ -547,9 +655,19 @@ function bindLiveRefresh() {
 
   document.addEventListener('input', (event) => {
     if (event.target?.matches?.([
-      ...selectors.baseUrl,
-      ...selectors.apiKey,
       ...selectors.model,
+    ].join(','))) {
+      scheduleRender();
+    }
+
+    if (event.target?.matches?.([
+      ...selectors.baseUrl,
+    ].join(','))) {
+      scheduleDataReset();
+    }
+
+    if (event.target?.matches?.([
+      ...selectors.apiKey,
     ].join(','))) {
       scheduleRender();
     }

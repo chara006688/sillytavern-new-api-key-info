@@ -1,5 +1,7 @@
 const PLUGIN_ID = 'newapi-key-info';
 const REQUEST_TIMEOUT_MS = 15000;
+const fs = require('node:fs');
+const path = require('node:path');
 
 const zh = {
   noBaseUrl: '\u7f3a\u5c11\u81ea\u5b9a\u4e49 API \u5730\u5740\u3002',
@@ -64,14 +66,43 @@ async function fetchJson(url, apiKey) {
 }
 
 async function readCustomApiKey(request) {
-  const { readSecret, SECRET_KEYS } = await import('../../src/endpoints/secrets.js');
   const directories = request.user?.directories;
+  const secretId = String(request.body?.secretId || request.body?.secret_id || '').trim() || null;
 
   if (!directories) {
     throw new Error(zh.noUserDirs);
   }
 
-  return readSecret(directories, SECRET_KEYS.CUSTOM);
+  try {
+    const { readSecret, SECRET_KEYS } = await import('../../src/endpoints/secrets.js');
+    return readSecret(directories, SECRET_KEYS.CUSTOM, secretId)
+      || readSecret(directories, SECRET_KEYS.CUSTOM)
+      || readCustomApiKeyFromFile(directories, SECRET_KEYS.CUSTOM, secretId);
+  } catch (error) {
+    console.warn('[new-api-key-info] failed to import SillyTavern secrets helper:', error?.message || error);
+    return readCustomApiKeyFromFile(directories, 'api_key_custom', secretId);
+  }
+}
+
+function readCustomApiKeyFromFile(directories, key, secretId) {
+  try {
+    const filePath = path.join(directories.root, 'secrets.json');
+    if (!fs.existsSync(filePath)) return '';
+
+    const secrets = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const value = secrets?.[key];
+
+    if (typeof value === 'string') return value;
+    if (!Array.isArray(value)) return '';
+
+    const selected = value.find((secret) => secretId ? secret?.id === secretId : secret?.active)
+      || value.find((secret) => secret?.active)
+      || value[0];
+    return String(selected?.value || '');
+  } catch (error) {
+    console.warn('[new-api-key-info] failed to read secrets.json fallback:', error?.message || error);
+    return '';
+  }
 }
 
 async function init(router) {
