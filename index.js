@@ -1,45 +1,48 @@
 const EXT_ID = 'newapi-key-info';
 const PLUGIN_ENDPOINT = '/api/plugins/newapi-key-info/summary';
+const SECRET_FIND_ENDPOINT = '/api/secrets/find';
 const QUOTA_PER_USD = 500000;
 const MODEL_WAIT_TIMEOUT_MS = 8000;
+const CUSTOM_SECRET_KEY = 'api_key_custom';
 
 const zh = {
-  requestFailed: '\u006e\u0065\u0077\u002d\u0061\u0070\u0069 \u8bf7\u6c42\u5931\u8d25',
-  noBaseUrl: '\u7f3a\u5c11\u81ea\u5b9a\u4e49 API \u5730\u5740\u3002',
-  noServerKey: '\u540e\u7aef\u6ca1\u6709\u8bfb\u5230\u5df2\u4fdd\u5b58\u7684 Custom API \u5bc6\u94a5\u3002',
-  noUsageData: '\u4f59\u989d\u63a5\u53e3\u6ca1\u6709\u8fd4\u56de\u6570\u636e\u3002',
-  browserNoKey: '\u672a\u5b89\u88c5\u002f\u672a\u542f\u7528\u540e\u7aef\u63d2\u4ef6\uff0c\u4e14 ST \u5df2\u9690\u85cf\u4fdd\u5b58\u7684\u5bc6\u94a5\uff0c\u4f59\u989d\u67e5\u8be2\u9700\u8981\u9875\u9762\u4e2d\u5b58\u5728\u5b8c\u6574\u5bc6\u94a5\u3002',
-  serverUnavailable: '\u540e\u7aef\u63d2\u4ef6\u4e0d\u53ef\u7528',
-  quota: '\u989d\u5ea6',
-  loading: '\u6b63\u5728\u52a0\u8f7d...',
-  clickRefresh: '\u70b9\u51fb\u8fde\u63a5\u6216\u5237\u65b0\u3002',
-  unlimited: '\u65e0\u9650\u989d\u5ea6',
-  remaining: '\u5269\u4f59',
-  about: '\u7ea6',
-  used: '\u5df2\u7528',
-  total: '\u603b\u8ba1',
-  badUsageFields: '\u63a5\u53e3\u672a\u8fd4\u56de\u53ef\u8bc6\u522b\u7684\u4f59\u989d\u5b57\u6bb5\u3002',
-  waitModels: '\u6b63\u5728\u7b49\u5f85\u6a21\u578b\u5217\u8868...',
-  noPrice: '\u5f53\u524d\u6a21\u578b\u6ca1\u6709\u4ef7\u683c\u4fe1\u606f\u3002',
-  badPrice: '\u4ef7\u683c\u672a\u914d\u7f6e\u3002',
-  perRequest: '\u6309\u6b21',
-  metered: '\u6309\u91cf',
-  input: '\u8f93\u5165',
-  output: '\u8f93\u51fa',
-  noModel: '\u672a\u9009\u62e9\u6a21\u578b\u3002',
-  group: '\u5206\u7ec4',
-  serverMode: '\u540e\u7aef\u6a21\u5f0f',
-  browserMode: '\u524d\u7aef\u6a21\u5f0f',
-  onlyNewApi: '\u4ec5\u652f\u6301 new-api',
-  waitingModelShort: '\u7b49\u5f85\u6a21\u578b...',
-  loadingShort: '\u52a0\u8f7d\u4e2d...',
-  title: 'New API \u4fe1\u606f',
-  refresh: '\u5237\u65b0',
-  model: '\u6a21\u578b',
-  price: '\u4ef7\u683c',
-  balance: '\u4f59\u989d',
-  source: '\u6765\u6e90',
-  keyTail: '\u5bc6\u94a5\u5c3e\u53f7',
+  requestFailed: 'new-api 请求失败',
+  noBaseUrl: '缺少自定义 API 地址。',
+  noUsageData: '余额接口没有返回数据。',
+  tauriHiddenKey: 'TauriTavern 默认禁止第三方前端插件读取隐藏密钥；余额需要打开 allowKeysExposure，或在输入框里临时显示完整 key。',
+  browserNoKey: 'ST 已隐藏保存的密钥；余额查询需要页面中存在完整密钥。',
+  serverUnavailable: 'ST 后端插件不可用',
+  quota: '额度',
+  loading: '正在加载...',
+  clickRefresh: '点击连接或刷新。',
+  unlimited: '无限额度',
+  remaining: '剩余',
+  about: '约',
+  used: '已用',
+  total: '总计',
+  badUsageFields: '接口未返回可识别的余额字段。',
+  waitModels: '正在等待模型列表...',
+  noPrice: '当前模型没有价格信息。',
+  badPrice: '价格未配置。',
+  perRequest: '按次',
+  metered: '按量',
+  input: '输入',
+  output: '输出',
+  noModel: '未选择模型。',
+  group: '分组',
+  tauriMode: 'TauriTavern 单插件模式',
+  serverMode: 'ST 后端插件模式',
+  browserMode: '前端模式',
+  onlyNewApi: '仅支持 new-api',
+  waitingModelShort: '等待模型...',
+  loadingShort: '加载中...',
+  title: 'New API 信息',
+  refresh: '刷新',
+  model: '模型',
+  price: '价格',
+  balance: '余额',
+  source: '来源',
+  keyTail: '密钥尾号',
 };
 
 const selectors = {
@@ -60,21 +63,16 @@ const selectors = {
     '#api_key_custom',
     '#custom_openai_api_key',
     '#custom_api_key',
-    '#api_key_openai',
-    '#openai_api_key',
+    '[name="api_key_custom"]',
     '[name="custom_openai_api_key"]',
     '[name="custom_api_key"]',
-    'input[type="password"]',
   ],
   model: [
     '#custom_model_id',
     '#model_custom_select',
-    '#model_openai_select',
-    '#model_chat_completion',
-    '#openai_model',
+    '.model_custom_select',
     '#custom_model',
     '[name="custom_model"]',
-    '[name="model"]',
   ],
   profile: [
     '#connection_profiles',
@@ -98,15 +96,22 @@ let state = {
   waitingForModel: false,
   pricingError: '',
   usageError: '',
+  note: '',
 };
 
 function firstVisible(selectorList) {
   for (const selector of selectorList) {
     for (const el of document.querySelectorAll(selector)) {
-      if (el instanceof HTMLElement && el.offsetParent !== null) {
-        return el;
-      }
+      if (el instanceof HTMLElement && el.offsetParent !== null) return el;
     }
+  }
+  return null;
+}
+
+function firstElement(selectorList) {
+  for (const selector of selectorList) {
+    const el = document.querySelector(selector);
+    if (el instanceof HTMLElement) return el;
   }
   return null;
 }
@@ -127,16 +132,51 @@ function normalizeModelName(value) {
   return /^(none|null|undefined)$/i.test(model) ? '' : model;
 }
 
+function getContext() {
+  try {
+    return globalThis.SillyTavern?.getContext?.() || {};
+  } catch {
+    return {};
+  }
+}
+
+function getChatCompletionSettings() {
+  return getContext().chatCompletionSettings || globalThis.oai_settings || {};
+}
+
+function getExtensionSettings() {
+  const context = getContext();
+  return context.extensionSettings || globalThis.extension_settings || {};
+}
+
+function getRequestHeaders(contentType = true) {
+  const context = getContext();
+  const headers = context.getRequestHeaders?.()
+    || globalThis.getRequestHeaders?.()
+    || {};
+  return contentType ? { ...headers, 'Content-Type': 'application/json' } : headers;
+}
+
+function isTauriTavernRuntime() {
+  return globalThis.__TAURI_RUNNING__ === true
+    || Boolean(globalThis.__TAURITAVERN__)
+    || Boolean(globalThis.__TAURITAVERN_MAIN_READY__)
+    || Boolean(globalThis.__TAURI_INTERNALS__)
+    || typeof globalThis.__TAURI__?.core?.invoke === 'function';
+}
+
 function isCustomChatCompletion() {
   const contextSource = String(getChatCompletionSettings().chat_completion_source || '').toLowerCase();
   if (contextSource === 'custom') return true;
 
-  const source = firstVisible(selectors.source);
-  if (!source) return Boolean(firstVisible(selectors.baseUrl));
+  const source = firstElement(selectors.source);
+  if (!source) return !contextSource && Boolean(firstVisible(selectors.baseUrl));
 
   const value = getValue(source).toLowerCase();
   const text = selectedText(source).toLowerCase();
-  return value.includes('custom') || text.includes('custom');
+  if (value) return value === 'custom';
+  if (contextSource) return false;
+  return text.includes('custom') && text.includes('openai-compatible');
 }
 
 function normalizeNewApiBase(rawUrl) {
@@ -164,9 +204,9 @@ function normalizeNewApiBase(rawUrl) {
   }
 }
 
-function bearer(apiKey) {
-  const key = String(apiKey || '').trim();
-  return key ? `Bearer ${key}` : '';
+function getCustomBaseUrl() {
+  const settings = getChatCompletionSettings();
+  return normalizeNewApiBase(settings.custom_url || getValue(firstElement(selectors.baseUrl)) || '');
 }
 
 function looksLikeMaskedSecret(value) {
@@ -175,39 +215,17 @@ function looksLikeMaskedSecret(value) {
   return /^(\*+|hidden|saved)$/i.test(key)
     || /^sk-[*.]+$/i.test(key)
     || key.includes('****')
-    || key.includes('\u2022\u2022\u2022\u2022');
+    || key.includes('••••');
 }
 
 function getVisibleApiKey() {
-  const key = getValue(firstVisible(selectors.apiKey));
+  const key = getValue(firstElement(selectors.apiKey));
   return looksLikeMaskedSecret(key) ? '' : key;
-}
-
-function getCustomBaseUrl() {
-  const settings = getChatCompletionSettings();
-  return normalizeNewApiBase(getValue(firstVisible(selectors.baseUrl)) || settings.custom_url || '');
-}
-
-function getContext() {
-  try {
-    return globalThis.SillyTavern?.getContext?.() || {};
-  } catch {
-    return {};
-  }
-}
-
-function getChatCompletionSettings() {
-  return getContext().chatCompletionSettings || globalThis.oai_settings || {};
-}
-
-function getExtensionSettings() {
-  const context = getContext();
-  return context.extensionSettings || globalThis.extension_settings || {};
 }
 
 function getSelectedProfile() {
   const connectionManager = getExtensionSettings().connectionManager;
-  const selectedId = getValue(firstVisible(selectors.profile)) || connectionManager?.selectedProfile || '';
+  const selectedId = getValue(firstElement(selectors.profile)) || connectionManager?.selectedProfile || '';
   const profiles = Array.isArray(connectionManager?.profiles) ? connectionManager.profiles : [];
   return profiles.find((profile) => profile.id === selectedId || profile.name === selectedId) || null;
 }
@@ -225,14 +243,9 @@ function getActiveSecretId() {
   return '';
 }
 
-function buildRequestHeaders() {
-  const contextHeaders = getContext().getRequestHeaders?.()
-    || globalThis.getRequestHeaders?.()
-    || {};
-  return {
-    ...contextHeaders,
-    'Content-Type': 'application/json',
-  };
+function bearer(apiKey) {
+  const key = String(apiKey || '').trim();
+  return key ? `Bearer ${key}` : '';
 }
 
 async function fetchJson(url, apiKey) {
@@ -247,31 +260,35 @@ async function fetchJson(url, apiKey) {
   });
 
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.message || `${response.status} ${response.statusText}`);
-  }
-  if (body.success === false || body.code === false) {
-    throw new Error(body.message || zh.requestFailed);
-  }
+  if (!response.ok) throw new Error(body.message || `${response.status} ${response.statusText}`);
+  if (body.success === false || body.code === false) throw new Error(body.message || zh.requestFailed);
   return body;
+}
+
+async function postJson(url, payload) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: getRequestHeaders(),
+    body: JSON.stringify(payload || {}),
+    cache: 'no-store',
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.success === false) throw new Error(body.message || body.error || `${response.status} ${response.statusText}`);
+  return body;
+}
+
+async function findSavedCustomKey(secretId) {
+  const payload = { key: CUSTOM_SECRET_KEY };
+  if (secretId) payload.id = secretId;
+  const body = await postJson(SECRET_FIND_ENDPOINT, payload);
+  return String(body.value || '').trim();
 }
 
 async function fetchServerSummary(baseUrl, secretId) {
-  const response = await fetch(PLUGIN_ENDPOINT, {
-    method: 'POST',
-    headers: buildRequestHeaders(),
-    body: JSON.stringify({ baseUrl, secretId }),
-    cache: 'no-store',
-  });
-
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body.success === false) {
-    throw new Error(body.message || `${response.status} ${response.statusText}`);
-  }
-  return body;
+  return postJson(PLUGIN_ENDPOINT, { baseUrl, secretId });
 }
 
-async function refreshViaServer(baseUrl, secretId) {
+async function refreshViaServerPlugin(baseUrl, secretId) {
   const result = await fetchServerSummary(baseUrl, secretId);
   state.mode = 'server';
   state.pricing = result.pricing || null;
@@ -280,42 +297,51 @@ async function refreshViaServer(baseUrl, secretId) {
   state.usageError = result.errors?.usage || '';
   state.lastApiKeyTail = result.keyTail || '';
 
-  if (!result.hasKey) {
-    state.usageError = zh.noServerKey;
-  } else if (!state.usage && !state.usageError) {
-    state.usageError = zh.noUsageData;
+  if (!result.hasKey && !state.usageError) state.usageError = '后端插件没有读到 Custom API 密钥。';
+  if (result.debug && !result.hasKey) state.note = summarizeBackendDebug(result.debug);
+  if (result.hasKey && !state.usage && !state.usageError) state.usageError = zh.noUsageData;
+}
+
+async function refreshDirect(baseUrl, apiKey, mode, hiddenKeyMessage) {
+  state.mode = mode;
+  state.lastApiKeyTail = apiKey ? apiKey.slice(-6) : '';
+
+  try {
+    state.pricing = await fetchJson(`${baseUrl}/api/pricing`, apiKey);
+  } catch (error) {
+    state.pricingError = error?.message || String(error);
+  }
+
+  if (!apiKey) {
+    state.usage = null;
+    state.usageError = hiddenKeyMessage;
+    return;
+  }
+
+  try {
+    state.usage = await fetchJson(`${baseUrl}/api/usage/token`, apiKey);
+  } catch (error) {
+    state.usageError = error?.message || String(error);
   }
 }
 
-async function refreshViaBrowser(baseUrl) {
-  const apiKey = getVisibleApiKey();
-  state.mode = 'browser';
-  state.lastApiKeyTail = apiKey ? apiKey.slice(-6) : '';
-  state.usageError = apiKey ? '' : zh.browserNoKey;
+async function refreshViaTauriTavern(baseUrl, secretId) {
+  let apiKey = getVisibleApiKey();
+  let hiddenKeyMessage = zh.tauriHiddenKey;
 
-  const tasks = [
-    (async () => {
-      try {
-        state.pricing = await fetchJson(`${baseUrl}/api/pricing`, apiKey);
-      } catch (error) {
-        state.pricingError = error?.message || String(error);
-      }
-    })(),
-  ];
-
-  if (apiKey) {
-    tasks.push((async () => {
-      try {
-        state.usage = await fetchJson(`${baseUrl}/api/usage/token`, apiKey);
-      } catch (error) {
-        state.usageError = error?.message || String(error);
-      }
-    })());
-  } else {
-    state.usage = null;
+  if (!apiKey) {
+    try {
+      apiKey = await findSavedCustomKey(secretId);
+    } catch (error) {
+      hiddenKeyMessage = `${zh.tauriHiddenKey}（${error?.message || String(error)}）`;
+    }
   }
 
-  await Promise.all(tasks);
+  await refreshDirect(baseUrl, apiKey, 'tauri', hiddenKeyMessage);
+}
+
+async function refreshViaBrowser(baseUrl) {
+  await refreshDirect(baseUrl, getVisibleApiKey(), 'browser', zh.browserNoKey);
 }
 
 async function refresh() {
@@ -333,16 +359,23 @@ async function refresh() {
   state.loadingUsage = true;
   state.pricingError = '';
   state.usageError = '';
+  state.note = '';
   state.lastBaseUrl = baseUrl;
   render();
 
   try {
-    await refreshViaServer(baseUrl, secretId);
-  } catch (serverError) {
-    state.pricingError = '';
-    await refreshViaBrowser(baseUrl);
-    if (!state.usage && state.usageError) {
-      state.usageError += `\uff08${zh.serverUnavailable}\uff1a${serverError?.message || String(serverError)}\uff09`;
+    if (isTauriTavernRuntime()) {
+      await refreshViaTauriTavern(baseUrl, secretId);
+      return;
+    }
+
+    try {
+      await refreshViaServerPlugin(baseUrl, secretId);
+    } catch (serverError) {
+      state.pricingError = '';
+      state.note = `${zh.serverUnavailable}: ${serverError?.message || String(serverError)}`;
+      await refreshViaBrowser(baseUrl);
+      if (!state.usage) state.usageError += `（${state.note}）`;
     }
   } finally {
     state.loadingPricing = false;
@@ -353,51 +386,100 @@ async function refresh() {
 
 function getCurrentModelName() {
   const settings = getChatCompletionSettings();
-  const customModel = String(settings.custom_model || '').trim();
+  const candidates = [
+    settings.custom_model,
+    getValue(document.querySelector('#custom_model_id')),
+    getValue(document.querySelector('#model_custom_select')),
+    selectedText(document.querySelector('#model_custom_select')),
+  ];
+
   for (const selector of selectors.model) {
     for (const el of document.querySelectorAll(selector)) {
-      if (!(el instanceof HTMLElement) || el.offsetParent === null) continue;
-      const value = normalizeModelName(getValue(el)) || normalizeModelName(selectedText(el));
-      if (value) return value;
+      if (!(el instanceof HTMLElement)) continue;
+      if (el instanceof HTMLDataListElement || el.tagName === 'DATALIST') continue;
+      candidates.push(getValue(el), selectedText(el));
     }
   }
-  return normalizeModelName(customModel);
+
+  for (const candidate of candidates) {
+    const model = normalizeModelName(candidate);
+    if (model) return model;
+  }
+  return '';
+}
+
+function topLevelPricingSource() {
+  const data = state.pricing?.data;
+  return data && typeof data === 'object' ? data : state.pricing;
 }
 
 function pricingItems() {
   const data = state.pricing?.data;
-  if (Array.isArray(data)) return data;
+  if (Array.isArray(data)) return data.map(normalizePricingItem);
 
-  const source = data && typeof data === 'object' ? data : state.pricing;
+  const source = topLevelPricingSource();
   if (!source || typeof source !== 'object') return [];
+
+  const nested = source.models || source.prices || source.pricing;
+  if (Array.isArray(nested)) return nested.map(normalizePricingItem);
 
   const modelRatios = source.model_ratio || source.modelRatio || {};
   const completionRatios = source.completion_ratio || source.completionRatio || {};
   const modelPrices = source.model_price || source.modelPrice || {};
+  const quotaTypes = source.quota_type || source.quotaType || {};
+  const names = new Set([
+    ...Object.keys(modelRatios),
+    ...Object.keys(completionRatios),
+    ...Object.keys(modelPrices),
+    ...Object.entries(source)
+      .filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value))
+      .map(([key]) => key),
+  ]);
 
-  return Object.entries(source)
-    .filter(([key, value]) => key !== 'group_ratio' && key !== 'model_ratio' && key !== 'completion_ratio' && key !== 'model_price' && value && typeof value === 'object')
-    .map(([modelName, value]) => ({
-      model_name: value.model_name || value.model || modelName,
-      model_ratio: value.model_ratio ?? value.modelRatio ?? modelRatios[modelName],
-      completion_ratio: value.completion_ratio ?? value.completionRatio ?? completionRatios[modelName] ?? 1,
-      model_price: value.model_price ?? value.modelPrice ?? modelPrices[modelName],
-      quota_type: value.quota_type ?? value.quotaType ?? 0,
-      ...value,
+  return [...names]
+    .filter((name) => !['group_ratio', 'model_ratio', 'completion_ratio', 'model_price', 'quota_type'].includes(name))
+    .map((modelName) => normalizePricingItem({
+      model_name: modelName,
+      model_ratio: modelRatios[modelName],
+      completion_ratio: completionRatios[modelName],
+      model_price: modelPrices[modelName],
+      quota_type: quotaTypes[modelName],
+      ...(source[modelName] && typeof source[modelName] === 'object' ? source[modelName] : {}),
     }));
+}
+
+function normalizePricingItem(item) {
+  const source = item && typeof item === 'object' ? item : {};
+  return {
+    ...source,
+    model_name: source.model_name || source.model || source.name || source.id || '',
+    model_ratio: source.model_ratio ?? source.modelRatio ?? source.prompt_ratio ?? source.promptRatio,
+    completion_ratio: source.completion_ratio ?? source.completionRatio ?? source.output_ratio ?? source.outputRatio ?? 1,
+    model_price: source.model_price ?? source.modelPrice ?? source.price,
+    quota_type: source.quota_type ?? source.quotaType ?? 0,
+  };
+}
+
+function normalizeForCompare(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
 function currentPricing() {
   const model = getCurrentModelName();
   if (!model) return null;
 
-  return pricingItems().find((item) => item.model_name === model)
-    || pricingItems().find((item) => item.model_name?.toLowerCase() === model.toLowerCase())
+  const items = pricingItems();
+  const normalized = normalizeForCompare(model);
+  return items.find((item) => item.model_name === model)
+    || items.find((item) => normalizeForCompare(item.model_name) === normalized)
+    || items.find((item) => normalizeForCompare(item.model_name).endsWith(`/${normalized}`))
+    || items.find((item) => normalized.endsWith(`/${normalizeForCompare(item.model_name)}`))
     || null;
 }
 
 function groupRatios() {
-  const ratios = state.pricing?.group_ratio;
+  const source = topLevelPricingSource();
+  const ratios = source?.group_ratio || source?.groupRatio;
   if (!ratios || typeof ratios !== 'object') return [['default', 1]];
   const entries = Object.entries(ratios)
     .map(([name, ratio]) => [name, Number(ratio)])
@@ -407,8 +489,9 @@ function groupRatios() {
 
 function preferredGroupRatio() {
   const ratios = groupRatios();
-  const defaultish = ratios.find(([name]) => ['default', 'standard'].includes(String(name).toLowerCase()));
-  return defaultish || ratios[0] || ['default', 1];
+  return ratios.find(([name]) => ['default', 'standard'].includes(String(name).toLowerCase()))
+    || ratios[0]
+    || ['default', 1];
 }
 
 function formatUsd(value, digits = 6) {
@@ -454,6 +537,7 @@ function formatModelPrice() {
   if (Number(item.quota_type) === 1) {
     const price = Number(item.model_price) * ratio;
     const quota = price * QUOTA_PER_USD;
+    if (!Number.isFinite(price)) return zh.badPrice;
     return `${zh.perRequest} ${formatUsd(price, 6)} / ${formatQuota(quota)}`;
   }
 
@@ -480,9 +564,22 @@ function formatModelStatus() {
 }
 
 function formatMode() {
+  if (state.mode === 'tauri') return zh.tauriMode;
   if (state.mode === 'server') return zh.serverMode;
   if (state.mode === 'browser') return zh.browserMode;
   return zh.onlyNewApi;
+}
+
+function summarizeBackendDebug(debug) {
+  const custom = Array.isArray(debug.candidates)
+    ? debug.candidates.find((candidate) => candidate.key === CUSTOM_SECRET_KEY)
+    : null;
+  const parts = [];
+  if (debug.userHandle) parts.push(`用户 ${debug.userHandle}`);
+  parts.push(`secrets.json ${debug.secretFileExists ? '存在' : '不存在'}`);
+  if (custom) parts.push(`${CUSTOM_SECRET_KEY}: ${custom.type}, ${custom.count || 0} 个`);
+  if (debug.helperError) parts.push(`helper: ${debug.helperError}`);
+  return parts.join('；');
 }
 
 function panelHtml() {
@@ -495,6 +592,9 @@ function panelHtml() {
         : `<span class="newapi-key-info__muted">${escapeHtml(formatMode())}</span>`;
 
   const source = `${formatMode()}${state.lastApiKeyTail ? `，${zh.keyTail} ${state.lastApiKeyTail}` : ''}`;
+  const noteRow = state.note
+    ? `<span class="newapi-key-info__label">诊断</span><span class="newapi-key-info__value newapi-key-info__muted">${escapeHtml(state.note)}</span>`
+    : '';
 
   return `
     <div class="newapi-key-info__row">
@@ -513,6 +613,7 @@ function panelHtml() {
       <span class="newapi-key-info__value">${escapeHtml(formatUsage())}</span>
       <span class="newapi-key-info__label">${zh.source}</span>
       <span class="newapi-key-info__value">${escapeHtml(source)}</span>
+      ${noteRow}
     </div>
   `;
 }
@@ -528,13 +629,13 @@ function escapeHtml(value) {
 }
 
 function findInsertionTarget() {
-  const key = firstVisible(selectors.apiKey);
+  const key = firstElement(selectors.apiKey);
   if (key) return key.closest('.flex-container, .wide100p, .inline-drawer-content, label, div') || key;
 
-  const baseUrl = firstVisible(selectors.baseUrl);
+  const baseUrl = firstElement(selectors.baseUrl);
   if (baseUrl) return baseUrl.closest('.flex-container, .wide100p, .inline-drawer-content, label, div') || baseUrl;
 
-  return document.querySelector('#APIBlock, #api_settings, #connection_profiles, .api_settings') || null;
+  return document.querySelector('#custom_form, #openai_api, #APIBlock, #api_settings, #connection_profiles, .api_settings') || null;
 }
 
 function ensurePanel() {
@@ -554,9 +655,7 @@ function ensurePanel() {
   panel.className = 'newapi-key-info';
   target.insertAdjacentElement('afterend', panel);
   panel.addEventListener('click', (event) => {
-    if (event.target?.closest?.('[data-newapi-refresh]')) {
-      refresh();
-    }
+    if (event.target?.closest?.('[data-newapi-refresh]')) refresh();
   });
   return panel;
 }
@@ -565,6 +664,7 @@ function render() {
   const panel = ensurePanel();
   if (!panel) return;
   panel.innerHTML = panelHtml();
+  maybeAutoRefresh();
 }
 
 function scheduleRender() {
@@ -582,6 +682,7 @@ function clearRemoteData() {
   state.mode = '';
   state.pricingError = '';
   state.usageError = '';
+  state.note = '';
 }
 
 function scheduleDataReset() {
@@ -589,24 +690,35 @@ function scheduleDataReset() {
   scheduleRender();
 }
 
+function hasRemoteResultOrError() {
+  return Boolean(state.pricing || state.usage || state.pricingError || state.usageError);
+}
+
+function scheduleAutoRefresh(delay = 600) {
+  clearTimeout(scheduleAutoRefresh.timer);
+  scheduleAutoRefresh.timer = setTimeout(() => {
+    if (state.loadingPricing || state.loadingUsage || hasRemoteResultOrError()) return;
+    if (!isCustomChatCompletion() || !getCustomBaseUrl()) return;
+    refresh();
+  }, delay);
+}
+
+scheduleAutoRefresh.timer = null;
+
+function maybeAutoRefresh() {
+  if (state.loadingPricing || state.loadingUsage || hasRemoteResultOrError()) return;
+  if (!isCustomChatCompletion() || !getCustomBaseUrl()) return;
+  scheduleAutoRefresh();
+}
+
 function waitForModel(timeoutMs = MODEL_WAIT_TIMEOUT_MS) {
   const deadline = Date.now() + timeoutMs;
-
   return new Promise((resolve) => {
     const tick = () => {
-      if (getCurrentModelName()) {
-        resolve(true);
-        return;
-      }
-
-      if (Date.now() >= deadline) {
-        resolve(false);
-        return;
-      }
-
+      if (getCurrentModelName()) return resolve(true);
+      if (Date.now() >= deadline) return resolve(false);
       setTimeout(tick, 250);
     };
-
     tick();
   });
 }
@@ -619,58 +731,38 @@ async function refreshAfterConnect() {
   await refresh();
 }
 
+function matchesAny(target, selectorList) {
+  return target instanceof Element && target.matches(selectorList.join(','));
+}
+
 function bindLiveRefresh() {
   document.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
 
     const clickedConnect = selectors.connect.some((selector) => target.closest(selector));
-    const textLooksLikeConnect = /^(connect|\u8fde\u63a5|\u9023\u63a5)$/i.test(String(target.textContent || '').trim());
-    if (clickedConnect || textLooksLikeConnect) {
-      setTimeout(refreshAfterConnect, 500);
-    }
+    const textLooksLikeConnect = /^(connect|连接|連接)$/i.test(String(target.textContent || '').trim());
+    if (clickedConnect || textLooksLikeConnect) setTimeout(refreshAfterConnect, 500);
   });
 
   document.addEventListener('change', (event) => {
-    if (event.target?.matches?.([
-      ...selectors.model,
-    ].join(','))) {
+    const target = event.target;
+    if (matchesAny(target, selectors.model)) {
       scheduleRender();
+      if (!state.pricing) scheduleDataReset();
     }
-
-    if (event.target?.matches?.([
-      ...selectors.source,
-      ...selectors.baseUrl,
-      ...selectors.profile,
-    ].join(','))) {
-      scheduleDataReset();
-    }
-
-    if (event.target?.matches?.([
-      ...selectors.apiKey,
-    ].join(','))) {
-      scheduleRender();
-    }
+    if (matchesAny(target, [...selectors.source, ...selectors.baseUrl, ...selectors.profile])) scheduleDataReset();
+    if (matchesAny(target, selectors.apiKey)) scheduleRender();
   });
 
   document.addEventListener('input', (event) => {
-    if (event.target?.matches?.([
-      ...selectors.model,
-    ].join(','))) {
+    const target = event.target;
+    if (matchesAny(target, selectors.model)) {
       scheduleRender();
+      if (!state.pricing) scheduleDataReset();
     }
-
-    if (event.target?.matches?.([
-      ...selectors.baseUrl,
-    ].join(','))) {
-      scheduleDataReset();
-    }
-
-    if (event.target?.matches?.([
-      ...selectors.apiKey,
-    ].join(','))) {
-      scheduleRender();
-    }
+    if (matchesAny(target, selectors.baseUrl)) scheduleDataReset();
+    if (matchesAny(target, selectors.apiKey)) scheduleRender();
   });
 
   const observer = new MutationObserver((mutations) => {

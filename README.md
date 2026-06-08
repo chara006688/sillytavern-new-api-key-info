@@ -1,107 +1,90 @@
-# SillyTavern New API 密钥信息
+# SillyTavern New API Key Info
 
-这是一个 SillyTavern 前后端组合插件，用于聊天补全的 `Custom (OpenAI-compatible)` 连接页面。
-它会显示 new-api 模型价格和当前密钥余额，并优先由后端读取 SillyTavern 已保存的 `api_key_custom`。
+在 `Custom (OpenAI-compatible)` 连接页显示 new-api 的当前模型价格和密钥余额。
 
-## 功能
+## TauriTavern 用法
 
-- 仅面向 new-api。
-- 前端 UI 扩展在连接配置区域显示模型、价格、余额和数据来源。
-- 后端 Server Plugin 读取 SillyTavern 保存的 Custom API 密钥，支持当前连接配置文件里的 `secret-id`，找不到时回退到当前 active key。
-- 点击连接后，等待模型列表加载完成，再获取当前模型价格和余额。
-- 支持按次价格和按量价格显示。
-- 后端插件不可用时，会自动退回前端模式。
-- 前端模式只能读取页面里可见的完整 API key；如果 ST 隐藏保存的 key，就不能查余额。
-- 黑底白字显示，尽量不受 SillyTavern 主题影响。
+TauriTavern 只需要安装这个前端扩展，不需要也不能安装 Node 后端插件。插件列表里只出现 `New API Key Info` 是正常的。
 
-## 安装前端 UI 扩展
+安装方式：
 
-把本仓库导入 SillyTavern / TauriTavern 的第三方扩展管理器，或手动复制到扩展目录：
+- 通过 TauriTavern 的第三方扩展管理器导入本仓库。
+- 或手动放到 `data/default-user/extensions/sillytavern-new-api-key-info`。
+- 也可以放到全局目录 `data/extensions/third-party/sillytavern-new-api-key-info`。
 
-- `SillyTavern/data/default-user/extensions/sillytavern-new-api-key-info`
-- `SillyTavern/public/scripts/extensions/third-party/sillytavern-new-api-key-info`
+启用扩展后，选择 `Chat Completion Source = Custom (OpenAI-compatible)`，填写 Custom Endpoint。插件会在面板出现后自动刷新一次，也可以点击面板里的 `刷新`。
 
-然后重启 SillyTavern，或刷新浏览器页面，并在扩展管理里启用 `New API Key Info`。
+## 价格显示
 
-## 安装后端 Server Plugin
+价格来自 new-api 的：
 
-SillyTavern 的 Server Plugin 必须放在 SillyTavern 根目录的 `plugins` 目录中，不能只放在前端扩展目录里。
+```text
+GET /api/pricing
+```
 
-把仓库里的这个目录：
+插件会把你填写的地址自动归一化。例如：
+
+```text
+https://example.com/v1
+https://example.com/api/pricing
+https://example.com/v1/chat/completions
+```
+
+都会推导为：
+
+```text
+https://example.com/api/pricing
+```
+
+切换模型时不会重新请求余额，只会用已缓存的价格数据重新显示当前模型价格。
+
+## 余额显示
+
+余额来自 new-api 的：
+
+```text
+GET /api/usage/token
+```
+
+TauriTavern 默认禁止第三方前端扩展读取已经隐藏保存的 API key。这是 TauriTavern 的安全策略，不是插件能绕过的逻辑。
+
+余额能显示的情况：
+
+- 输入框里还有完整 key，例如刚填完 key、还没被隐藏时。
+- TauriTavern 设置里开启了 `Allow Keys Exposure`，重启后允许 `/api/secrets/find` 暴露 key。
+
+余额不能显示的情况：
+
+- key 已保存并隐藏。
+- `Allow Keys Exposure` 仍是默认关闭。
+
+这种情况下插件会继续显示价格，但余额会提示 TauriTavern 禁止读取隐藏密钥。
+
+## 原版 SillyTavern
+
+原版 SillyTavern 也可以只安装前端扩展，但前端同样不能读取隐藏保存的 key。若要在 key 已隐藏时查询余额，可额外安装仓库里的可选 Server Plugin：
 
 ```text
 server-plugin/newapi-key-info
 ```
 
-复制到 SillyTavern 根目录：
+把它复制到 SillyTavern 根目录：
 
 ```text
 SillyTavern/plugins/newapi-key-info
 ```
 
-然后在 `config.yaml` 开启：
+并在 `config.yaml` 开启：
 
 ```yaml
 enableServerPlugins: true
 ```
 
-重启 SillyTavern。启动日志里应能看到：
+TauriTavern 不支持 SillyTavern 的 Node-only backend plugins，因此这个目录只给原版 SillyTavern 使用。
 
-```text
-[new-api-key-info] server plugin loaded
-```
-
-后端接口会挂载到：
-
-```text
-/api/plugins/newapi-key-info/summary
-```
-
-## 刷新时机
-
-- 自动刷新：点击聊天补全连接按钮后触发。
-- 等待模型：连接后最多等待 8 秒，直到模型选择框出现模型。
-- 手动刷新：点击面板里的 `刷新`。
-- 切换模型：监听 `#custom_model_id` 和模型下拉框，只用已经缓存的价格数据立刻重新显示，不会重新请求余额接口。
-
-## 支持的自定义 API 地址
-
-推荐填写：
-
-```text
-https://你的-new-api-域名/v1
-```
-
-插件也会兼容以下输入，并自动推导回 new-api 根地址：
-
-```text
-https://你的-new-api-域名
-https://你的-new-api-域名/pricing
-https://你的-new-api-域名/api/pricing
-https://你的-new-api-域名/v1/chat/completions
-```
-
-## 需要的 new-api 接口
+## new-api 接口要求
 
 - `GET /api/pricing`
 - `GET /api/usage/token`
 
-例如：
-
-- `https://api.example.com/v1` -> `https://api.example.com/api/pricing`
-- `https://api.example.com/pricing` -> `https://api.example.com/api/pricing`
-- `https://api.example.com/api/pricing` -> `https://api.example.com/api/pricing`
-
-## 关于隐藏密钥和余额
-
-前端扩展无法读取 ST 隐藏的已保存 key。
-
-安装后端 Server Plugin 后，插件会在后端读取当前用户目录里的 `secrets.json`。如果当前连接配置文件指定了 `secret-id`，会优先读取该密钥；否则获取 `api_key_custom` 当前激活的密钥，再请求 new-api 的余额接口。因此后端模式可以查询隐藏密钥的余额。
-
-如果面板显示 `前端模式`，说明后端插件没有安装、没有启用，或请求后端接口失败。
-如果面板显示 `后端模式`，说明余额查询已经走后端。
-
-## 安全提示
-
-Server Plugin 不在浏览器沙盒内运行，可以读取 SillyTavern 用户目录中的密钥文件。
-只安装你信任的后端插件，并避免把包含真实密钥的日志发给别人。
+如果价格显示为请求失败，请先确认浏览器或 TauriTavern 能访问你的 new-api 地址，并且该服务允许当前客户端请求。
